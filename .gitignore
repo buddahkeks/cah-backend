@@ -1,0 +1,10 @@
+cah/*
+conf/db.json
+node_modules/*
+
+icon.png
+package-lock.json
+
+insert.py
+add.py
+add_q.py
