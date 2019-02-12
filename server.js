@@ -465,10 +465,15 @@ app.get('/api/play/get-:username-cards/:token', (req, res) => {
 
             let cards = p.cards.slice();
 
+            for (let i = 0; i < cards.length; i++) {
+                cards[i] = {content: cards[i]};
+            }
+
             if (index >= 0) {
                 for (let a of sessions[req.params.token]
                         .round.answers[index].content) {
-                    cards.splice(cards.indexOf(a), 1);
+                    cards[cards.map(v=>v.content)
+                        .indexOf(a)].used = true;
                 }
             }
 
@@ -645,6 +650,33 @@ app.post('/api/play/start/:token', (req, res) => {
 
     res.send(req.params.token);
 });
+app.post('/api/play/skip-question/:token', (req, res) => {
+    if (!Object.keys(sessions).includes(req.params.token)) {
+        res.send('[ERROR]: unkown party token!');
+        return;
+    }
+    if (!sessions[req.params.token].started) {
+        res.send('[ERROR]: game has not started yet!');
+        return;
+    }
+    if (!req.cookies[conf.cookie_username]) {
+        res.send('[ERROR]: no username specified!');
+        return;
+    }
+
+    randomCard(
+        'question',
+        randomPack('question', req.params.token),
+        c => {
+            sessions[req.params.token].round.question = c;
+            sessions[req.params.token].round.blanks =
+                (c.match(/{\\\\__\/}/g) || []).length;
+        }
+    );
+
+    sessions[req.params.token].round.answers = [];
+    res.send(req.params.token);
+});
 app.post('/api/play/add-answer/:token', (req, res) => {
     if (!Object.keys(sessions).includes(req.params.token)) {
         res.send('[ERROR]: unkown party token!');
@@ -669,6 +701,19 @@ app.post('/api/play/add-answer/:token', (req, res) => {
         res.send('[ERROR]: not in party!');
         return;
     }
+
+    let us = sessions[req.params.token].players
+                .map(v => v.username);
+     
+    // SELF-WRITTEN
+    if (!sessions[req.params.token].players
+        [us.indexOf(req.body.username)].cards
+        .includes(req.body.content)) {
+        sessions[req.params.token].players
+            [us.indexOf(req.body.username)].cards
+            .push(req.body.content);
+    }
+
 
     let a_users = sessions[req.params.token].round.answers
         .map(v => v.username);
@@ -729,10 +774,6 @@ app.post('/api/play/remove-card/:token', (req, res) => {
         res.send('[ERROR]: too few cards!');
         return;
     }
-
-    console.log("Index: " + req.body.index);
-    console.log(sessions[req.params.token]
-        .players[p_index].cards);
 
     sessions[req.params.token].players[p_index].cards.splice(
         +req.body.index, 1);
